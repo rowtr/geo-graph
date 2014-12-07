@@ -53,27 +53,23 @@
 	  (if-let [wtobj (gd-api-call from to)] wtobj)) 
 
 (defn google-graph
-  [stops weight cache]
+  [stops cache]
   (let [  gfn (if cache (memoize-geocode cache address->latlon) address->latlon)
           wfn (if cache (memoize-weight cache get-weight) get-weight)
           stops (mapv #(gfn %) stops) 
           tuples (combinatorics/selections (range (count stops)) 2)
           ws        (mapv #(wfn (nth stops (first %)) (nth stops (second %))) tuples)
           distances (mapv #(:distance %) ws)
-          durations (mapv #(:duration %) ws)
-          w (case weight "distance" distances "duration" durations "default")
-          alt (case weight "distance" durations "duration" distances "default")]
-    (graph/make-graph (count stops) w alt)))
+          durations (mapv #(:duration %) ws) ]
+    (graph/make-graph (count stops) distances durations)))
 
 (defn concurrent-google-graph
-  [stops weight cache]
+  [stops cache]
   (let [gfn   (if cache (memoize-geocode cache address->latlon) address->latlon)
         wfn   (if cache (memoize-weight  cache get-weight) get-weight)
         depot (gfn (first stops))
         stops (vec (cons depot (map #(gfn %) (rest stops))))
         t (filter #(let [[x y] %] (not= x y)) (for [x (range (count stops)) y (range (count stops))] [x y]))
-        ws (into {} (pmap #(let [[f t] % w (wfn (nth stops f) (nth stops t))] (assoc {} (vec %) {:distance (:distance w) :duration (:duration w)})) t))
-        w (case weight "distance" :distance "duration" :duration "default")
-        alt (case weight "distance" :duration "duration" :distance "default")]
-    (graph/make-concurrent-graph (count stops) ws w alt)))
+        ws (into {} (pmap #(let [[f t] % w (wfn (nth stops f) (nth stops t))] (assoc {} (vec %) {:distance (:distance w) :duration (:duration w)})) t))]
+    (graph/make-concurrent-graph (count stops) ws )))
  
