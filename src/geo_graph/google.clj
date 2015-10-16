@@ -20,11 +20,11 @@
 
 (defn gd-api-call
   "get directions between two addresses in a hash map"
-  [from to]
+  [from to options]
   (if (not= (:label from) (:label to))
 	  (loop [sleep 100]
 	    (if (> sleep sleep-max-panic) (throw (Exception. "Timeout Panic")))
-	    (let [dir (google-directions {:from from :to to})]
+	    (let [dir (google-directions (merge {:from from :to to} options))]
 	      (cond
 	        (= (:status dir) "OK") 
 	        (assoc  {} :distance (max 1 (directions-get-part dir :distance)) :duration (max 1 (directions-get-part dir :duration)) :points (directions-get-points dir)) 
@@ -49,27 +49,27 @@
     (if-let [gobj (gg-api-call addr)] gobj)))
 
 (defn get-weight
-  [from to]
-	  (if-let [wtobj (gd-api-call from to)] wtobj)) 
+  [from to options]
+	  (if-let [wtobj (gd-api-call from to options)] wtobj)) 
 
 (defn google-graph
-  [stops cache]
+  [stops cache & [options]]
   (let [  gfn (if cache (memoize-geocode cache address->latlon) address->latlon)
           wfn (if cache (memoize-weight cache get-weight) get-weight)
-          stops (mapv #(gfn %) stops) 
+          stops (mapv #(gfn (merge % options)) stops) 
           tuples (combinatorics/selections (range (count stops)) 2)
-          ws        (mapv #(wfn (nth stops (first %)) (nth stops (second %))) tuples)
+          ws        (mapv #(wfn (nth stops (first %)) (nth stops (second %)) options) tuples)
           distances (mapv #(:distance %) ws)
           durations (mapv #(:duration %) ws) ]
     (graph/make-graph (count stops) distances durations)))
 
 (defn concurrent-google-graph
-  [stops cache]
+  [stops cache & [options]]
   (let [gfn   (if cache (memoize-geocode cache address->latlon) address->latlon)
         wfn   (if cache (memoize-weight  cache get-weight) get-weight)
-        depot (gfn (first stops))
-        stops (vec (cons depot (map #(gfn %) (rest stops))))
+        depot (gfn (merge (first stops) options))
+        stops (vec (cons depot (map #(gfn (merge % options)) (rest stops))))
         t (filter #(let [[x y] %] (not= x y)) (for [x (range (count stops)) y (range (count stops))] [x y]))
-        ws (into {} (pmap #(let [[f t] % w (wfn (nth stops f) (nth stops t))] (assoc {} (vec %) {:distance (:distance w) :duration (:duration w)})) t))]
+        ws (into {} (pmap #(let [[f t] % w (wfn (nth stops f) (nth stops t) options)] (assoc {} (vec %) {:distance (:distance w) :duration (:duration w)})) t))]
     (graph/make-concurrent-graph (count stops) ws )))
  
