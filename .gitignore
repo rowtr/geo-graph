@@ -1,4 +1,5 @@
 pom.xml
+repl-stuff
 .*
 pom.xml.asc
 *jar
