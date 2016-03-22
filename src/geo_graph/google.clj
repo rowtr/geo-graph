@@ -1,12 +1,14 @@
 (ns geo-graph.google
-    (:require [google-maps-web-api.core :as g :refer [google-directions google-geocode]])
-    (:require [geo-graph.graph :as graph])
-    (:require [geo-cache.cache :as c :refer [memoize-geocode memoize-weight]])
-    (:require [clojure.math.combinatorics :as combinatorics])
-)
+    (:require
+      [google-maps-web-api.core     :as g     :refer [google-directions google-geocode]]
+      [clojure.tools.logging        :as log]
+      [geo-graph.graph              :as graph]
+      [geo-cache.cache              :as c     :refer [memoize-geocode memoize-weight]]
+      [clojure.math.combinatorics   :as combinatorics]))
 
 
-(def sleep-max-panic 100000)
+(def sleep-max-panic      100000)
+(def retries-max-panic    10)
 
 
 (defn directions-get-part
@@ -18,19 +20,37 @@
   [obj]
   (:points (:overview_polyline (first (:routes obj)))))
 
-(defn gd-api-call
-  "get directions between two addresses in a hash map"
+(defmulti gd-api-call (fn [_ _ options] (:method options)) :default :sleep)
+
+(defmethod gd-api-call :sleep
   [from to options]
-  (if (not=  from to)
-	  (loop [sleep 100]
-	    (if (> sleep sleep-max-panic) (throw (Exception. (str "GD Timeout Panic - " sleep " from: " from " to: " to))))
-	    (let [dir (google-directions (merge {:from from :to to} options))]
-	      (cond
-	        (= (:status dir) "OK")
-	        (assoc  {} :distance (max 1 (directions-get-part dir :distance)) :duration (max 1 (directions-get-part dir :duration)) :points (directions-get-points dir))
-	        (= (:status dir) "ZERO_RESULTS")(assoc {} :distance 9999999 :duration 9999999)
-	        (= (:status dir) "OVER_QUERY_LIMIT") (do (. Thread (sleep sleep)) (recur (* 2 sleep)))
-	        :else (throw (Exception. (str "DIRECTIONS " (:status dir) " " (:label from) " " (:label to) " " from " " to)))))) nil) )
+  (when (not=  from to)
+    (let [sleep-max     (or (:sleep-max options) sleep-max-panic)]
+      (loop [sleep 100]
+        (if (> sleep sleep-max) (throw (Exception. (str "GD Timeout Panic - " sleep " from: " from " to: " to))))
+        (let [dir (google-directions (merge {:from from :to to} options))]
+          (cond
+            (= (:status dir) "OK")
+            (assoc  {} :distance (max 1 (directions-get-part dir :distance)) :duration (max 1 (directions-get-part dir :duration)) :points (directions-get-points dir))
+            (= (:status dir) "ZERO_RESULTS")(assoc {} :distance 9999999 :duration 9999999)
+            (= (:status dir) "OVER_QUERY_LIMIT") (do (. Thread (sleep sleep)) (recur (* 2 sleep)))
+            :else (throw (Exception. (str "DIRECTIONS " (:status dir) " " (:label from) " " (:label to) " " from " " to)))))))
+    nil))
+
+(defmethod gd-api-call :retry
+  [from to options]
+  (when (not= from to)
+    (let [retries       (or (:retries options) retries-max-panic)]
+      (loop [it 0]
+        (if (> it retries) (throw (Exception. (str "GD Retry Panic - " it " from: " from " to: " to))))
+        (let [dir (google-directions (merge {:from from :to to} options))]
+          (cond
+            (= (:status dir) "OK")
+            (assoc  {} :distance (max 1 (directions-get-part dir :distance)) :duration (max 1 (directions-get-part dir :duration)) :points (directions-get-points dir))
+            (= (:status dir) "ZERO_RESULTS")(assoc {} :distance 9999999 :duration 9999999)
+            (= (:status dir) "OVER_QUERY_LIMIT") (do (. Thread (sleep 100)) (recur (inc it)))
+            :else (throw (Exception. (str "DIRECTIONS " (:status dir) " " (:label from) " " (:label to) " " from " " to)))))
+        ))))
 
 (defn gg-api-call
   "geocode an address from a hashmap"
