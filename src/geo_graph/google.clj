@@ -32,7 +32,7 @@
           (cond
             (= (:status dir) "OK")
             (assoc  {} :distance (max 1 (directions-get-part dir :distance)) :duration (max 1 (directions-get-part dir :duration)) :points (directions-get-points dir))
-            (= (:status dir) "ZERO_RESULTS")(assoc {} :distance 9999999 :duration 9999999)
+            (= (:status dir) "ZERO_RESULTS")(assoc {} :distance 9999999 :duration 9999999 :no-cache true)
             (= (:status dir) "OVER_QUERY_LIMIT") (do (. Thread (sleep sleep)) (recur (* 2 sleep)))
             :else (throw (Exception. (str "DIRECTIONS " (:status dir) " " (:label from) " " (:label to) " " from " " to)))))))
     nil))
@@ -40,6 +40,7 @@
 (defmethod gd-api-call :retry
   [from to options]
   (when (not= from to)
+    (log/debug "calling google-directions " (:method options))
     (let [retries       (or (:retries options) retries-max-panic)]
       (loop [it 0]
         (if (> it retries) (throw (Exception. (str "GD Retry Panic - " it " from: " from " to: " to))))
@@ -47,7 +48,7 @@
           (cond
             (= (:status dir) "OK")
             (assoc  {} :distance (max 1 (directions-get-part dir :distance)) :duration (max 1 (directions-get-part dir :duration)) :points (directions-get-points dir))
-            (= (:status dir) "ZERO_RESULTS")(assoc {} :distance 9999999 :duration 9999999)
+            (= (:status dir) "ZERO_RESULTS")(assoc {} :distance 9999999 :duration 9999999 :no-cache true)
             (= (:status dir) "OVER_QUERY_LIMIT") (do (. Thread (sleep 100)) (recur (inc it)))
             :else (throw (Exception. (str "DIRECTIONS " (:status dir) " " (:label from) " " (:label to) " " from " " to)))))
         ))))
