@@ -1,9 +1,9 @@
-(ns geo-graph.google
+(ns co.rowtr.geo-graph.google
     (:require
       [google-maps-web-api.core     :as g     :refer [google-directions google-geocode]]
       [clojure.tools.logging        :as log]
-      [geo-graph.graph              :as graph]
-      [geo-cache.cache              :as c     :refer [memoize-geocode memoize-weight]]
+      [co.rowtr.geo-graph.graph     :as graph]
+      [co.rowtr.geo-cache.cache     :as c     :refer [memoize-geocode memoize-weight]]
       [clojure.math.combinatorics   :as combinatorics]))
 
 

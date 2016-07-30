@@ -1,4 +1,4 @@
-(ns geo-graph.graph)
+(ns co.rowtr.geo-graph.graph)
 
 (defprotocol IGraph
   (weight [this weight row col])
@@ -24,7 +24,7 @@
   (distance [this row col] (weight this :distance row col))
   (duration [this row col] (weight this :duration row col))
   (dimension [this] (:dimension this))
-  (row-col->index [this row col] (+ (* row (:dimension this)) col)))   
+  (row-col->index [this row col] (+ (* row (:dimension this)) col)))
 
 (defn make-concurrent-graph [dimension vals]
   (ConcurrentGraph. dimension vals))
