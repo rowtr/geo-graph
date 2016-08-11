@@ -31,9 +31,15 @@
         (let [dir (google-directions (merge {:from from :to to} options))]
           (cond
             (= (:status dir) "OK")
-            (assoc  {} :distance (max 1 (directions-get-part dir :distance)) :duration (max 1 (directions-get-part dir :duration)) :points (directions-get-points dir))
-            (= (:status dir) "ZERO_RESULTS")(assoc {} :distance 9999999 :duration 9999999 :no-cache true)
-            (= (:status dir) "OVER_QUERY_LIMIT") (do (. Thread (sleep sleep)) (recur (* 2 sleep)))
+              (assoc
+                {}
+                :distance (max 1 (directions-get-part dir :distance))
+                :duration (max 1 (directions-get-part dir :duration))
+                :points (directions-get-points dir))
+            (= (:status dir) "ZERO_RESULTS")
+              (with-meta (assoc {} :distance 9999999 :duration 9999999 :points nil) {:no-cache true})
+            (= (:status dir) "OVER_QUERY_LIMIT")
+              (do (. Thread (sleep sleep)) (recur (* 2 sleep)))
             :else (throw (Exception. (str "DIRECTIONS " (:status dir) " " (:label from) " " (:label to) " " from " " to)))))))
     nil))
 
@@ -47,9 +53,15 @@
         (let [dir (google-directions (merge {:from from :to to} options))]
           (cond
             (= (:status dir) "OK")
-            (assoc  {} :distance (max 1 (directions-get-part dir :distance)) :duration (max 1 (directions-get-part dir :duration)) :points (directions-get-points dir))
-            (= (:status dir) "ZERO_RESULTS")(assoc {} :distance 9999999 :duration 9999999 :no-cache true)
-            (= (:status dir) "OVER_QUERY_LIMIT") (do (. Thread (sleep 100)) (recur (inc it)))
+              (assoc
+                {}
+                :distance (max 1 (directions-get-part dir :distance))
+                :duration (max 1 (directions-get-part dir :duration))
+                :points (directions-get-points dir))
+            (= (:status dir) "ZERO_RESULTS")
+              (with-meta (assoc {} :distance 9999999 :duration 9999999) {:no-cache true})
+            (= (:status dir) "OVER_QUERY_LIMIT")
+              (do (. Thread (sleep 100)) (recur (inc it)))
             :else (throw (Exception. (str "DIRECTIONS " (:status dir) " " (:label from) " " (:label to) " " from " " to)))))
         ))))
 
